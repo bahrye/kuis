@@ -136,7 +136,41 @@
             
             <div class="bg-gray-800 p-6 rounded-lg text-left space-y-4">
                 <h3 class="text-2xl font-semibold text-center text-yellow-300">Generate Pertanyaan dengan AI ✨</h3>
-                <input type="text" id="ai-topik" placeholder="Masukkan topik, cth: 'Sejarah Indonesia'" class="w-full p-2 rounded text-black">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <select id="ai-jenjang" onchange="updateKelasOptions()" class="w-full p-2 rounded text-black">
+                        <option value="SD">Jenjang: SD</option>
+                        <option value="SMP">Jenjang: SMP</option>
+                        <option value="SMA">Jenjang: SMA</option>
+                        <option value="SMK">Jenjang: SMK</option>
+                    </select>
+                     <select id="ai-kelas" class="w-full p-2 rounded text-black">
+                        </select>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input list="mapel-list" id="ai-mapel" placeholder="Mata Pelajaran, cth: Matematika" class="w-full p-2 rounded text-black">
+                    <datalist id="mapel-list">
+                        <option value="Matematika">
+                        <option value="Bahasa Indonesia">
+                        <option value="Bahasa Inggris">
+                        <option value="IPA">
+                        <option value="IPS">
+                        <option value="Fisika">
+                        <option value="Kimia">
+                        <option value="Biologi">
+                        <option value="Sejarah">
+                        <option value="Geografi">
+                    </datalist>
+
+                    <select id="ai-semester" class="w-full p-2 rounded text-black">
+                        <option value="Ganjil">Semester: Ganjil</option>
+                        <option value="Genap">Semester: Genap</option>
+                    </select>
+                </div>
+
+                <input type="text" id="ai-topik" placeholder="Jelaskan topik spesifik, cth: 'Penjumlahan pecahan'" class="w-full p-2 rounded text-black">
+
                 <div class="flex items-center gap-4">
                      <select id="ai-tipe" class="w-full p-2 rounded text-black">
                          <option value="Pilihan Ganda">Tipe: Pilihan Ganda</option>
@@ -338,14 +372,21 @@
         }
 
         function hostGenerateAI() {
-            const topik = document.getElementById('ai-topik').value;
-            const jumlah = document.getElementById('ai-jumlah').value;
-            const tipe = document.getElementById('ai-tipe').value;
-            if (!topik) {
-                alert('Topik tidak boleh kosong!');
+            const options = {
+                jenjang: document.getElementById('ai-jenjang').value,
+                mapel: document.getElementById('ai-mapel').value,
+                kelas: document.getElementById('ai-kelas').value,
+                semester: document.getElementById('ai-semester').value,
+                topik: document.getElementById('ai-topik').value,
+                jumlah: document.getElementById('ai-jumlah').value,
+                tipe: document.getElementById('ai-tipe').value
+            };
+
+            if (!options.mapel || !options.topik) {
+                alert('Mata Pelajaran dan Topik Spesifik tidak boleh kosong!');
                 return;
             }
-            showLoader(`AI sedang membuat ${jumlah} pertanyaan ${tipe}...`);
+            showLoader(`AI sedang membuat ${options.jumlah} pertanyaan...`);
             document.getElementById('ai-generate-btn').disabled = true;
 
             google.script.run.withSuccessHandler(res => {
@@ -389,7 +430,7 @@
                     alert('Gagal: ' + res.message);
                     showView('host-dashboard-view');
                 }
-            }).generatePertanyaanAI(topik, jumlah, tipe);
+            }).generatePertanyaanAI(options);
         }
         
         function togglePilihSemuaSoalAI(masterCheckbox) {
@@ -431,7 +472,7 @@
                 opsiD: document.getElementById('manual-opsiD').value,
                 jawaban: document.getElementById('manual-jawaban').value,
                 waktu: document.getElementById('manual-waktu').value,
-                gambarURL: document.getElementById('manual-gambar-url').value // [BARU]
+                gambarURL: document.getElementById('manual-gambar-url').value
             };
             
             if (!dataSoal.pertanyaan || (tipe === 'Pilihan Ganda' && (!dataSoal.opsiA || !dataSoal.opsiB))) {
@@ -448,7 +489,7 @@
                     document.getElementById('manual-opsiB').value = '';
                     document.getElementById('manual-opsiC').value = '';
                     document.getElementById('manual-opsiD').value = '';
-                    document.getElementById('manual-gambar-url').value = ''; // [BARU]
+                    document.getElementById('manual-gambar-url').value = '';
                 }
                 showView('host-dashboard-view');
             }).hostTambahBeberapaPertanyaan([dataSoal]); 
@@ -597,7 +638,6 @@
                     timerFunction();
                     gameState.timerInterval = setInterval(timerFunction, 1000);
 
-                    // --- [BARU] Logika untuk menampilkan gambar ---
                     const hostImageContainer = document.getElementById('host-question-image-container');
                     const playerImageContainer = document.getElementById('player-question-image-container');
 
@@ -615,7 +655,7 @@
                         document.getElementById('host-question-action-container').innerHTML = '';
                         showView('host-question-view');
                     } else if (gameState.role === 'player') {
-                        document.getElementById('player-question-text').textContent = state.soal.pertanyaan; // Tampilkan teks soal ke pemain
+                        document.getElementById('player-question-text').textContent = state.soal.pertanyaan; 
                         if (state.jawabanPemain !== '') {
                              const lockedAnswerEl = document.getElementById('locked-answer-info');
                              lockedAnswerEl.textContent = `Pilihanmu: ${state.jawabanPemain}`;
@@ -733,9 +773,11 @@
             }
         }
 
+        // [MODIFIKASI] Memanggil updateKelasOptions() saat halaman dimuat
         window.onload = () => {
             document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
             showView('welcome-view');
+            updateKelasOptions(); // Panggil fungsi untuk inisialisasi
             
             const welcomeMessage = "Selamat Datang di Kuis Interaktif Syamsul Bahri";
             typeWriter('welcome-text', welcomeMessage, 75, () => {
@@ -762,6 +804,29 @@
                 }
             }
             type();
+        }
+
+        // [BARU] Fungsi untuk menyesuaikan pilihan kelas
+        function updateKelasOptions() {
+            const jenjang = document.getElementById('ai-jenjang').value;
+            const kelasSelect = document.getElementById('ai-kelas');
+            kelasSelect.innerHTML = ''; // Kosongkan pilihan lama
+
+            let kelasList = [];
+            if (jenjang === 'SD') {
+                kelasList = [1, 2, 3, 4, 5, 6];
+            } else if (jenjang === 'SMP') {
+                kelasList = [7, 8, 9];
+            } else if (jenjang === 'SMA' || jenjang === 'SMK') {
+                kelasList = [10, 11, 12];
+            }
+
+            kelasList.forEach(k => {
+                const option = document.createElement('option');
+                option.value = k;
+                option.textContent = `Kelas: ${k}`;
+                kelasSelect.appendChild(option);
+            });
         }
 
         function bukaHalamanKelola() {
@@ -808,7 +873,7 @@
                 document.getElementById('edit-opsiD').value = q.opsiD;
                 document.getElementById('edit-jawaban').value = q.jawaban;
                 document.getElementById('edit-waktu').value = q.waktu;
-                document.getElementById('edit-gambar-url').value = q.gambarURL || ''; // [BARU]
+                document.getElementById('edit-gambar-url').value = q.gambarURL || '';
                 toggleEditForm(q.tipe);
                 showView('edit-question-view');
             }
@@ -826,7 +891,7 @@
                 opsiD: document.getElementById('edit-opsiD').value,
                 jawaban: document.getElementById('edit-jawaban').value,
                 waktu: document.getElementById('edit-waktu').value,
-                gambarURL: document.getElementById('edit-gambar-url').value // [BARU]
+                gambarURL: document.getElementById('edit-gambar-url').value
             };
             showLoader("Menyimpan perubahan...");
             google.script.run.withSuccessHandler(res => {
