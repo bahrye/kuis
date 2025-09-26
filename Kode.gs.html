@@ -138,24 +138,27 @@ function hapusBeberapaPertanyaan(ids) {
 
 
 /**
- * [MODIFIKASI TOTAL] Mengganti Gemini dengan Groq AI.
+ * [MODIFIKASI TOTAL] Mengganti Gemini dengan Groq AI dan menambahkan parameter kustom.
  */
-function generatePertanyaanAI(topik, jumlah, tipe) {
+function generatePertanyaanAI(options) {
   if (GROQ_API_KEY === 'MASUKKAN_API_KEY_GROQ_ANDA' || !GROQ_API_KEY) {
     return { status: 'error', message: 'API Key untuk Groq belum diatur di Kode.gs' };
   }
   
+  const { jenjang, mapel, kelas, semester, topik, jumlah, tipe } = options;
   const jumlahSoal = parseInt(jumlah) || 1;
   const url = 'https://api.groq.com/openai/v1/chat/completions';
   
   // Model yang direkomendasikan adalah llama3-8b-8192, bisa diganti.
   const model = 'llama-3.1-8b-instant'; 
   
+  const konteksPendidikan = `untuk jenjang ${jenjang}, kelas ${kelas}, semester ${semester}, mata pelajaran "${mapel}", dengan topik spesifik: "${topik}"`;
+
   let prompt;
   if (tipe === 'Benar/Salah') {
-    prompt = `Buatkan ${jumlahSoal} pertanyaan kuis Benar/Salah tentang topik "${topik}". Jawaban HANYA boleh "A" untuk Benar, atau "B" untuk Salah. Berikan respon HANYA dalam format array JSON ketat seperti ini: [{"tipe": "Benar/Salah", "pertanyaan": "...", "jawaban": "A"}, {"tipe": "Benar/Salah", "pertanyaan": "...", "jawaban": "B"}]`;
+    prompt = `Buatkan ${jumlahSoal} pertanyaan kuis Benar/Salah ${konteksPendidikan}. Jawaban HANYA boleh "A" untuk Benar, atau "B" untuk Salah. Berikan respon HANYA dalam format array JSON ketat seperti ini: [{"tipe": "Benar/Salah", "pertanyaan": "...", "jawaban": "A"}, {"tipe": "Benar/Salah", "pertanyaan": "...", "jawaban": "B"}]`;
   } else {
-    prompt = `Buatkan ${jumlahSoal} pertanyaan kuis pilihan ganda (A, B, C, D) tentang topik "${topik}". Jawabannya harus salah satu dari A, B, C, atau D. Berikan respon HANYA dalam format array JSON ketat seperti ini: [{"tipe": "Pilihan Ganda", "pertanyaan": "...", "opsiA": "...", "opsiB": "...", "opsiC": "...", "opsiD": "...", "jawaban": "..."}, {"tipe": "Pilihan Ganda", "pertanyaan": "..." ...}]`;
+    prompt = `Buatkan ${jumlahSoal} pertanyaan kuis pilihan ganda (A, B, C, D) ${konteksPendidikan}. Jawabannya harus salah satu dari A, B, C, atau D. Berikan respon HANYA dalam format array JSON ketat seperti ini: [{"tipe": "Pilihan Ganda", "pertanyaan": "...", "opsiA": "...", "opsiB": "...", "opsiC": "...", "opsiD": "...", "jawaban": "..."}, {"tipe": "Pilihan Ganda", "pertanyaan": "..." ...}]`;
   }
 
   const payload = {
@@ -163,7 +166,7 @@ function generatePertanyaanAI(topik, jumlah, tipe) {
     messages: [
       {
         role: "system",
-        content: "Anda adalah asisten yang membantu membuat soal kuis. Selalu berikan respons dalam format array JSON yang ketat tanpa teks tambahan atau markdown."
+        content: "Anda adalah asisten yang membantu membuat soal kuis pendidikan. Selalu berikan respons dalam format array JSON yang ketat tanpa teks tambahan atau markdown."
       },
       {
         role: "user",
@@ -173,7 +176,7 @@ function generatePertanyaanAI(topik, jumlah, tipe) {
     temperature: 0.7,
   };
 
-  const options = {
+  const fetchOptions = {
     method: 'post',
     contentType: 'application/json',
     headers: {
@@ -184,7 +187,7 @@ function generatePertanyaanAI(topik, jumlah, tipe) {
   };
 
   try {
-    const response = UrlFetchApp.fetch(url, options);
+    const response = UrlFetchApp.fetch(url, fetchOptions);
     const responseData = JSON.parse(response.getContentText());
     
     if (responseData.error) {
