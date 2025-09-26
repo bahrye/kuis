@@ -1,0 +1,452 @@
+/**
+ * File Backend untuk Game Kuis Interaktif
+ * Dibuat oleh Gemini & dimodifikasi untuk Groq
+ * Versi 7.0 - Generator AI Groq
+ */
+
+// --- KONFIGURASI ---
+const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
+const kuisSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Kuis');
+const sesiSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Sesi');
+const pemainSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Pemain');
+const HOST_PASSWORD = 'Andhika9619!'; // <-- Ganti sandi ini sesuai keinginan Anda
+
+// [MODIFIKASI] Hapus GEMINI_API_KEY dan tambahkan GROQ_API_KEY
+const GROQ_API_KEY = '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'; // <-- GANTI DENGAN API KEY DARI GROQ CONSOLE
+
+const STREAK_BONUS_PER_LEVEL = 50; 
+
+function doGet(e) {
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('Game Kuis Interaktif')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0'); 
+}
+
+// ... (Fungsi lain dari hostLogin sampai hapusBeberapaPertanyaan tidak berubah) ...
+function hostLogin(password) {
+  if (password !== HOST_PASSWORD) {
+    return { status: 'error', message: 'Sandi host yang Anda masukkan salah.' };
+  }
+  return { status: 'success' };
+}
+
+function hostBuatGameDanKonfigurasi(options) {
+  try {
+    const kuisData = kuisSheet.getRange(2, 1, kuisSheet.getLastRow() - 1, 1).getValues();
+    let semuaIdSoal = kuisData.map(row => row[0]).filter(id => id);
+    if (semuaIdSoal.length === 0) { throw new Error("Bank Soal masih kosong. Tambahkan pertanyaan terlebih dahulu."); }
+    if (options.acak) {
+      for (let i = semuaIdSoal.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [semuaIdSoal[i], semuaIdSoal[j]] = [semuaIdSoal[j], semuaIdSoal[i]];
+      }
+    }
+    const jumlahPertanyaan = parseInt(options.jumlah) || semuaIdSoal.length;
+    const idSoalUntukSesiIni = semuaIdSoal.slice(0, jumlahPertanyaan);
+    const kodeSesi = Math.floor(1000 + Math.random() * 9000).toString();
+    const daftarIdString = JSON.stringify(idSoalUntukSesiIni);
+    sesiSheet.appendRow([kodeSesi, 0, 'LOBBY', '', daftarIdString]);
+    return { status: 'success', kodeSesi: kodeSesi };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+function hostTambahBeberapaPertanyaan(daftarSoal) {
+  try {
+    if (!daftarSoal || daftarSoal.length === 0) { throw new Error("Tidak ada data soal untuk disimpan."); }
+    const lastRow = kuisSheet.getLastRow();
+    let nextId = lastRow > 0 ? kuisSheet.getRange(lastRow, 1).getValue() + 1 : 1;
+    const rowsToAdd = daftarSoal.map(soal => {
+      const tipeSoal = soal.tipe || 'Pilihan Ganda';
+      const row = [
+        nextId, soal.pertanyaan,
+        tipeSoal === 'Benar/Salah' ? 'Benar' : soal.opsiA,
+        tipeSoal === 'Benar/Salah' ? 'Salah' : soal.opsiB,
+        tipeSoal === 'Benar/Salah' ? '' : soal.opsiC,
+        tipeSoal === 'Benar/Salah' ? '' : soal.opsiD,
+        soal.jawaban.toUpperCase(), parseInt(soal.waktu) || 20, tipeSoal,
+        soal.gambarURL || '' 
+      ];
+      nextId++;
+      return row;
+    });
+    kuisSheet.getRange(lastRow + 1, 1, rowsToAdd.length, 10).setValues(rowsToAdd);
+    return { status: 'success', message: `${rowsToAdd.length} pertanyaan berhasil ditambahkan!` };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+function getSemuaPertanyaan() {
+  try {
+    const dataRange = kuisSheet.getDataRange();
+    const values = dataRange.getValues();
+    if (values.length <= 1) { return { status: 'success', data: [] }; }
+    values.shift();
+    const questions = values.map(row => ({
+      id: row[0], pertanyaan: row[1], opsiA: row[2], opsiB: row[3], opsiC: row[4],
+      opsiD: row[5], jawaban: row[6], waktu: row[7], tipe: row[8] || 'Pilihan Ganda',
+      gambarURL: row[9] || ''
+    }));
+    return { status: 'success', data: questions };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+function updatePertanyaan(dataSoal) {
+  try {
+    const rowToUpdate = findRow(kuisSheet, 1, dataSoal.id);
+    if (rowToUpdate === 0) { throw new Error(`Pertanyaan dengan ID ${dataSoal.id} tidak ditemukan.`); }
+    const tipeSoal = dataSoal.tipe || 'Pilihan Ganda';
+    const rowData = [
+      dataSoal.id, dataSoal.pertanyaan,
+      tipeSoal === 'Benar/Salah' ? 'Benar' : dataSoal.opsiA,
+      tipeSoal === 'Benar/Salah' ? 'Salah' : dataSoal.opsiB,
+      tipeSoal === 'Benar/Salah' ? '' : dataSoal.opsiC,
+      tipeSoal === 'Benar/Salah' ? '' : dataSoal.opsiD,
+      dataSoal.jawaban.toUpperCase(), parseInt(dataSoal.waktu) || 20, tipeSoal,
+      dataSoal.gambarURL || '' 
+    ];
+    kuisSheet.getRange(rowToUpdate, 1, 1, 10).setValues([rowData]);
+    return { status: 'success', message: `Pertanyaan #${dataSoal.id} berhasil diperbarui.` };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+function hapusBeberapaPertanyaan(ids) {
+  try {
+    if (!ids || ids.length === 0) { throw new Error("Tidak ada ID pertanyaan yang dipilih untuk dihapus."); }
+    const idSet = new Set(ids.map(id => parseInt(id)));
+    const data = kuisSheet.getRange(2, 1, kuisSheet.getLastRow() - 1, 1).getValues();
+    const rowsToDelete = [];
+    for (let i = 0; i < data.length; i++) {
+      if (idSet.has(data[i][0])) { rowsToDelete.push(i + 2); }
+    }
+    for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+      kuisSheet.deleteRow(rowsToDelete[i]);
+    }
+    return { status: 'success', message: `${ids.length} pertanyaan berhasil dihapus.` };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+
+/**
+ * [MODIFIKASI TOTAL] Mengganti Gemini dengan Groq AI.
+ */
+function generatePertanyaanAI(topik, jumlah, tipe) {
+  if (GROQ_API_KEY === 'MASUKKAN_API_KEY_GROQ_ANDA' || !GROQ_API_KEY) {
+    return { status: 'error', message: 'API Key untuk Groq belum diatur di Kode.gs' };
+  }
+  
+  const jumlahSoal = parseInt(jumlah) || 1;
+  const url = 'https://api.groq.com/openai/v1/chat/completions';
+  
+  // Model yang direkomendasikan adalah llama3-8b-8192, bisa diganti.
+  const model = 'llama-3.1-8b-instant'; 
+  
+  let prompt;
+  if (tipe === 'Benar/Salah') {
+    prompt = `Buatkan ${jumlahSoal} pertanyaan kuis Benar/Salah tentang topik "${topik}". Jawaban HANYA boleh "A" untuk Benar, atau "B" untuk Salah. Berikan respon HANYA dalam format array JSON ketat seperti ini: [{"tipe": "Benar/Salah", "pertanyaan": "...", "jawaban": "A"}, {"tipe": "Benar/Salah", "pertanyaan": "...", "jawaban": "B"}]`;
+  } else {
+    prompt = `Buatkan ${jumlahSoal} pertanyaan kuis pilihan ganda (A, B, C, D) tentang topik "${topik}". Jawabannya harus salah satu dari A, B, C, atau D. Berikan respon HANYA dalam format array JSON ketat seperti ini: [{"tipe": "Pilihan Ganda", "pertanyaan": "...", "opsiA": "...", "opsiB": "...", "opsiC": "...", "opsiD": "...", "jawaban": "..."}, {"tipe": "Pilihan Ganda", "pertanyaan": "..." ...}]`;
+  }
+
+  const payload = {
+    model: model,
+    messages: [
+      {
+        role: "system",
+        content: "Anda adalah asisten yang membantu membuat soal kuis. Selalu berikan respons dalam format array JSON yang ketat tanpa teks tambahan atau markdown."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    temperature: 0.7,
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'Authorization': 'Bearer ' + GROQ_API_KEY
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const responseData = JSON.parse(response.getContentText());
+    
+    if (responseData.error) {
+       return { status: 'error', message: 'Gagal menghasilkan pertanyaan: ' + responseData.error.message };
+    }
+
+    if (!responseData.choices || responseData.choices.length === 0) {
+      return { status: 'error', message: 'Gagal menghasilkan pertanyaan: Respons AI tidak valid atau kosong.' };
+    }
+
+    let aiTextResponse = responseData.choices[0].message.content;
+    
+    // Membersihkan respons jika ada markdown
+    aiTextResponse = aiTextResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    const parsedContent = JSON.parse(aiTextResponse);
+    return { status: 'success', data: parsedContent };
+
+  } catch (e) {
+    return { status: 'error', message: 'Gagal: Terjadi kesalahan saat menghubungi Groq AI: ' + e.toString() };
+  }
+}
+
+
+function hostMulaiGame(kodeSesi) {
+  try {
+    const sesiRow = findRow(sesiSheet, 1, kodeSesi);
+    if (!sesiRow) throw new Error("Sesi game tidak ditemukan.");
+    const daftarIdString = sesiSheet.getRange(sesiRow, 5).getValue();
+    if (!daftarIdString) throw new Error("Konfigurasi sesi tidak ditemukan. Coba buat game baru.");
+    const idSoalUntukSesiIni = JSON.parse(daftarIdString);
+    if (idSoalUntukSesiIni.length === 0) throw new Error("Tidak ada pertanyaan untuk sesi ini.");
+    const idPertanyaanPertama = idSoalUntukSesiIni[0];
+    sesiSheet.getRange(sesiRow, 2).setValue(idPertanyaanPertama);
+    sesiSheet.getRange(sesiRow, 3).setValue('PERTANYAAN');
+    sesiSheet.getRange(sesiRow, 4).setValue(new Date().getTime());
+    return { status: 'success' };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+function hostLanjut(kodeSesi) {
+  const sesiRow = findRow(sesiSheet, 1, kodeSesi);
+  if (!sesiRow) return { status: 'error', message: 'Sesi tidak ditemukan.' };
+  const currentStatus = sesiSheet.getRange(sesiRow, 3).getValue();
+  if (currentStatus === 'LEADERBOARD' || currentStatus === 'PERTANYAAN') {
+    const daftarIdString = sesiSheet.getRange(sesiRow, 5).getValue();
+    const questionIds = JSON.parse(daftarIdString);
+    const currentQuestionId = parseInt(sesiSheet.getRange(sesiRow, 2).getValue());
+    const currentQuestionIndex = questionIds.indexOf(currentQuestionId);
+    if (currentQuestionIndex >= questionIds.length - 1) {
+      sesiSheet.getRange(sesiRow, 3).setValue('SELESAI');
+    } else {
+      const nextQuestionId = questionIds[currentQuestionIndex + 1];
+      resetPemainJawaban(kodeSesi);
+      sesiSheet.getRange(sesiRow, 2).setValue(nextQuestionId);
+      sesiSheet.getRange(sesiRow, 3).setValue('PERTANYAAN');
+      sesiSheet.getRange(sesiRow, 4).setValue(new Date().getTime());
+    }
+  }
+  return { status: 'success' };
+}
+
+function playerGabungGame(kodeSesi, namaPemain, avatar) {
+  try {
+    const sesiRow = findRow(sesiSheet, 1, kodeSesi);
+    if (!sesiRow) throw new Error("Kode game salah atau tidak ditemukan.");
+    if (sesiSheet.getRange(sesiRow, 3).getValue() !== 'LOBBY') {
+      throw new Error("Game sudah dimulai. Tidak bisa bergabung.");
+    }
+    const idpemain = Utilities.getUuid();
+    pemainSheet.appendRow([idpemain, kodeSesi, namaPemain, 0, '', '', avatar, 0]); 
+    return { status: 'success', idpemain: idpemain };
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+function playerSubmitJawaban(kodeSesi, idpemain, jawaban) {
+  const pemainRow = findRow(pemainSheet, 1, idpemain);
+  if (!pemainRow) return { status: 'error', message: 'Pemain tidak valid.' };
+  const jawabanSaatIni = pemainSheet.getRange(pemainRow, 5).getValue();
+  if (jawabanSaatIni !== '') {
+    return { status: 'warning', message: 'Anda sudah menjawab pertanyaan ini.' };
+  }
+  pemainSheet.getRange(pemainRow, 5).setValue(jawaban);
+  pemainSheet.getRange(pemainRow, 6).setValue(new Date().getTime());
+  return { status: 'success', message: 'Jawaban diterima' };
+}
+
+
+function getGameState(kodeSesi, idpemain = null) {
+  const sesiRow = findRow(sesiSheet, 1, kodeSesi);
+  if (!sesiRow) return { status: 'error', message: 'Sesi game tidak lagi valid.' };
+  let statusGame = sesiSheet.getRange(sesiRow, 3).getValue();
+  const idPertanyaan = parseInt(sesiSheet.getRange(sesiRow, 2).getValue());
+  let dataPemainIni = null;
+  if(idpemain){ dataPemainIni = getPemainById(idpemain); }
+
+  if (statusGame === 'PERTANYAAN') {
+    const soal = getSoalById(idPertanyaan);
+    const waktuMulai = sesiSheet.getRange(sesiRow, 4).getValue();
+    const waktuSekarang = new Date().getTime();
+    const waktuBerakhir = waktuMulai + ((soal.waktu * 1000) + 1500); 
+    if (waktuSekarang > waktuBerakhir) {
+        calculateAllScores(kodeSesi, idPertanyaan);
+        sesiSheet.getRange(sesiRow, 3).setValue('LEADERBOARD');
+        statusGame = 'LEADERBOARD';
+    } else {
+        const semuaPemainData = getAllPemain(kodeSesi);
+        const daftarIdString = sesiSheet.getRange(sesiRow, 5).getValue();
+        const questionIds = JSON.parse(daftarIdString);
+        const currentQuestionIndex = questionIds.indexOf(idPertanyaan);
+        const pemainYangSudahJawab = getPemainYangSudahJawab(kodeSesi);
+
+        return {
+            status: 'PERTANYAAN', 
+            soal: soal, 
+            waktuMulai: waktuMulai, 
+            totalPemain: semuaPemainData.length,
+            pemainSudahJawab: pemainYangSudahJawab.length,
+            jawabanPemain: dataPemainIni ? dataPemainIni.jawabanSaatIni : '',
+            nomorSoal: currentQuestionIndex + 1,
+            totalSoal: questionIds.length,
+            pemainYangSudahJawab: pemainYangSudahJawab
+        };
+    }
+  }
+  if (statusGame === 'LOBBY') {
+    return { status: 'LOBBY', kodeSesi: kodeSesi, pemain: getAllPemain(kodeSesi) };
+  }
+  if (statusGame === 'LEADERBOARD' || statusGame === 'SELESAI') {
+    const soal = getSoalById(idPertanyaan);
+    
+    const daftarIdString = sesiSheet.getRange(sesiRow, 5).getValue();
+    const questionIds = JSON.parse(daftarIdString);
+    const currentQuestionIndex = questionIds.indexOf(idPertanyaan);
+    const isFinalLeaderboard = (currentQuestionIndex >= questionIds.length - 1);
+
+    return {
+        status: statusGame,
+        leaderboard: getAllPemain(kodeSesi).sort((a, b) => b.skor - a.skor),
+        jawabanBenar: soal ? soal.jawaban : '',
+        jawabanPemain: dataPemainIni ? dataPemainIni.jawabanSaatIni : '',
+        isFinalLeaderboard: isFinalLeaderboard 
+    };
+  }
+  return { status: 'UNKNOWN' };
+}
+
+// --- FUNGSI HELPERS ---
+
+function findRow(sheet, col, value) {
+  const data = sheet.getRange(1, col, sheet.getLastRow() + 1, 1).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (data[i][0] == value) { return i + 1; }
+  }
+  return 0;
+}
+
+function getAllPemain(kodeSesi) {
+  if (pemainSheet.getLastRow() < 2) return [];
+  const data = pemainSheet.getRange(2, 1, pemainSheet.getLastRow() - 1, 8).getValues();
+  return data
+    .filter(row => row[1] == kodeSesi)
+    .map(row => ({ 
+        id: row[0], nama: row[2], skor: row[3],
+        avatar: row[6] || '👤', streak: row[7] || 0 
+    }));
+}
+
+function getPemainById(idpemain){
+    const row = findRow(pemainSheet, 1, idpemain);
+    if(!row) return null;
+    const data = pemainSheet.getRange(row, 1, 1, 8).getValues()[0];
+    return {
+        id: data[0], kodeSesi: data[1], nama: data[2], skor: data[3],
+        jawabanSaatIni: data[4], waktuJawab: data[5], streak: data[7] || 0
+    };
+}
+
+function getSoalById(id) {
+  if (id === 0) return null;
+  const row = findRow(kuisSheet, 1, id);
+  if (!row) return null;
+  const data = kuisSheet.getRange(row, 1, 1, 10).getValues()[0];
+  const tipeSoal = data[8] || 'Pilihan Ganda';
+  let opsi = {};
+  if (tipeSoal === 'Benar/Salah') {
+    opsi = { A: data[2], B: data[3] };
+  } else {
+    opsi = { A: data[2], B: data[3], C: data[4], D: data[5] };
+  }
+  return { 
+    id: data[0], pertanyaan: data[1], opsi: opsi, 
+    jawaban: data[6], waktu: data[7], tipe: tipeSoal, 
+    gambarURL: data[9] || ''
+  };
+}
+
+function getPemainYangSudahJawab(kodeSesi) {
+  if (pemainSheet.getLastRow() < 2) return [];
+  const data = pemainSheet.getRange(2, 1, pemainSheet.getLastRow() - 1, 7).getValues();
+  return data
+    .filter(row => row[1] == kodeSesi && row[4] !== '')
+    .map(row => ({ nama: row[2], avatar: row[6] || '👤' }));
+}
+
+
+function calculateAllScores(kodeSesi, idPertanyaan) {
+    const sesiRow = findRow(sesiSheet, 1, kodeSesi);
+    const waktuMulaiPertanyaan = parseInt(sesiSheet.getRange(sesiRow, 4).getValue());
+    const dataPertanyaan = getSoalById(idPertanyaan);
+    if (!dataPertanyaan) return;
+
+    const semuaPemain = pemainSheet.getRange(2, 1, pemainSheet.getLastRow() - 1, 8).getValues();
+    
+    for (let i = 0; i < semuaPemain.length; i++) {
+        const row = i + 2;
+        if (semuaPemain[i][1] == kodeSesi) {
+            const pJawaban = semuaPemain[i][4];
+            const pWaktuJawab = semuaPemain[i][5];
+            const pSkorSaatIni = parseInt(semuaPemain[i][3]);
+            const pStreakSaatIni = parseInt(semuaPemain[i][7] || 0);
+
+            let skorDidapat = 0;
+            let streakBaru = 0;
+
+            if (pJawaban === dataPertanyaan.jawaban && pWaktuJawab) {
+                const waktuRespons = (pWaktuJawab - waktuMulaiPertanyaan) / 1000;
+                const waktuMaks = dataPertanyaan.waktu;
+                const skorBasis = Math.round((1 - (waktuRespons / (waktuMaks * 2))) * 1000);
+                skorDidapat = Math.max(0, skorBasis);
+                
+                streakBaru = pStreakSaatIni + 1;
+                const bonusStreak = (streakBaru -1) * STREAK_BONUS_PER_LEVEL;
+                skorDidapat += bonusStreak;
+
+            } else {
+                streakBaru = 0;
+            }
+            
+            const skorBaru = pSkorSaatIni + skorDidapat;
+            
+            pemainSheet.getRange(`D${row}`).setValue(skorBaru);
+            pemainSheet.getRange(`H${row}`).setValue(streakBaru);
+        }
+    }
+}
+
+function resetPemainJawaban(kodeSesi) {
+  if (pemainSheet.getLastRow() < 2) return;
+  const data = pemainSheet.getRange(2, 1, pemainSheet.getLastRow() - 1, 2).getValues();
+  const rangesToClear = [];
+  for (let i = 0; i < data.length; i++) {
+    if (data[i][1] == kodeSesi) {
+      const row = i + 2;
+      rangesToClear.push(`E${row}:F${row}`);
+    }
+  }
+  if (rangesToClear.length > 0) {
+    pemainSheet.getRangeList(rangesToClear).clearContent();
+  }
+}
