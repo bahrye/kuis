@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <title>Kuis Interaktif Syamsul Bahri</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .view { display: none; }
+        .loader { border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .btn { width: 100%; padding: 1rem; color: white; font-weight: bold; font-size: 1.1rem; border: none; border-radius: 0.5rem; cursor: pointer; transition: transform 0.2s; }
+        .btn:hover { transform: scale(1.02); }
+        .btn:disabled { background-color: #6b7280; cursor: not-allowed; opacity: 0.7; }
+        .option-btn { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.5rem; color: white; font-weight: bold; border-radius: 0.5rem; cursor: pointer; transition: opacity 0.3s; text-align: center; padding: 0.5rem; }
+        .option-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .rank-1 { background: linear-gradient(145deg, #ffd700, #f8c200); box-shadow: 0 0 20px #ffd90088; }
+        .rank-2 { background: linear-gradient(145deg, #c0c0c0, #a8a8a8); }
+        .rank-3 { background: linear-gradient(145deg, #cd7f32, #b8732e); }
+        .sparkle { position: relative; overflow: hidden; }
+        .sparkle::after { content: '✨'; position: absolute; top: -10px; right: 5px; font-size: 1.5rem; opacity: 0; animation: sparkle-anim 2.5s ease-in-out infinite; }
+        @keyframes sparkle-anim { 0%, 100% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 60% { transform: scale(1.1); opacity: 0.8; } }
+
+        .avatar-option { cursor: pointer; font-size: 2.5rem; transition: transform 0.2s; padding: 0.5rem; border-radius: 50%; }
+        .avatar-option:hover { transform: scale(1.2); }
+        .avatar-option.selected { background-color: #4a5568; transform: scale(1.1); }
+
+        .tf-btn {
+            font-size: 2.5rem;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .tf-btn:hover { transform: scale(1.03); }
+
+        #welcome-text::after {
+            content: '█';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            from, to { color: transparent; }
+            50% { color: white; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+
+    <div id="player-info-display" class="hidden fixed top-4 right-4 bg-gray-800/80 backdrop-blur-sm text-white p-3 rounded-lg shadow-lg text-lg font-semibold z-50"></div>
+
+    <audio id="lobby-music" src="https://mcdn.podbean.com/mf/web/2akchi5ph45qmnpq/Run-Amok_online-audio-convertercom_6fzza.mp3" loop></audio>
+    <audio id="question-music" src="https://mcdn.podbean.com/mf/web/79pk4ghc6wb28mpf/luxury-apartments-300581.mp3" loop></audio>
+    <audio id="correct-sfx" src="https://mcdn.podbean.com/mf/web/kwgs48zjwq4umtc7/sonido-correcto-331225.mp3"></audio>
+    <audio id="wrong-sfx" src="https://mcdn.podbean.com/mf/web/uafde3aiqxmgvrff/incorrect-293358.mp3"></audio>
+
+    <div class="container mx-auto p-4 max-w-4xl text-center">
+
+        <div id="welcome-view" class="view flex flex-col items-center justify-center h-screen">
+            <h1 id="welcome-text" class="text-4xl md:text-5xl font-bold text-center text-yellow-300"></h1>
+        </div>
+
+        <div id="home-view" class="view space-y-6">
+            <h1 class="text-5xl font-bold text-yellow-300">Kuis Interaktif!</h1>
+            <p class="text-xl text-gray-300">Siap untuk bermain?</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                <button onclick="showView('host-options-view')" class="btn bg-blue-600 hover:bg-blue-700">Saya Host</button>
+                <button onclick="showView('player-join-view')" class="btn bg-green-600 hover:bg-green-700">Saya Pemain</button>
+            </div>
+        </div>
+        
+        <div id="host-options-view" class="view space-y-4">
+            <h2 class="text-3xl font-bold">Login Host</h2>
+            <input type="password" id="host-password-input" placeholder="Masukkan Sandi Host" class="w-full p-3 rounded-lg text-black text-center text-lg">
+            <button id="login-host-btn" onclick="hostLogin()" class="btn bg-indigo-600 hover:bg-indigo-700">Login</button>
+            <button onclick="showView('home-view')" class="text-gray-400 hover:underline mt-4">Kembali</button>
+        </div>
+
+        <div id="player-join-view" class="view space-y-4">
+            <h2 class="text-3xl font-bold">Gabung Game</h2>
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold mb-3">Pilih Avatarmu</h3>
+                <div id="avatar-selection" class="flex justify-center gap-4">
+                    <span class="avatar-option selected">😀</span><span class="avatar-option">🚀</span><span class="avatar-option">🦊</span><span class="avatar-option">👑</span><span class="avatar-option">🤖</span>
+                </div>
+                <input type="hidden" id="player-avatar-input" value="😀">
+            </div>
+            <input type="text" id="player-name-input" placeholder="Masukkan Nama Anda" class="w-full p-3 rounded-lg text-black text-center text-lg">
+            <input type="number" id="game-code-input" placeholder="Masukkan Kode Game" class="w-full p-3 rounded-lg text-black text-center text-lg">
+            <button id="join-game-btn" onclick="playerJoinGame()" class="btn bg-green-600 hover:bg-green-700">Gabung!</button>
+            <button onclick="showView('home-view')" class="text-gray-400 hover:underline mt-4">Kembali</button>
+        </div>
+
+        <div id="lobby-view" class="view space-y-6">
+            <h2 class="text-2xl">Kode Game:</h2>
+            <p id="lobby-code" class="text-6xl font-extrabold tracking-widest bg-white text-gray-900 rounded-lg py-4"></p>
+            <div id="host-start-button-container"></div>
+            <h3 class="text-xl font-semibold pt-4">Pemain yang sudah bergabung:</h3>
+            <div id="player-list" class="bg-gray-800 p-4 rounded-lg min-h-[100px] text-left grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+        </div>
+
+        <div id="host-dashboard-view" class="view space-y-8">
+            <h2 class="text-4xl font-bold">Dasbor Host</h2>
+            <button onclick="showView('host-setup-view')" class="btn bg-green-600 hover:bg-green-700 w-full md:w-1/2 mx-auto">🚀 Siapkan Game Baru</button>
+            <button onclick="bukaHalamanKelola()" class="btn bg-yellow-600 hover:bg-yellow-700 text-gray-900 w-full md:w-1/2 mx-auto">🔧 Kelola Pertanyaan</button>
+            
+            <div class="bg-gray-800 p-6 rounded-lg text-left space-y-4">
+                <h3 class="text-2xl font-semibold text-center text-yellow-300">Tambah Pertanyaan Manual</h3>
+                <select id="manual-tipe" onchange="toggleManualForm(this.value)" class="w-full p-2 rounded text-black">
+                    <option value="Pilihan Ganda">Tipe: Pilihan Ganda</option>
+                    <option value="Benar/Salah">Tipe: Benar/Salah</option>
+                </select>
+                <input type="text" id="manual-pertanyaan" placeholder="Tulis Pertanyaan" class="w-full p-2 rounded text-black">
+                <input type="text" id="manual-gambar-url" placeholder="URL Gambar (Opsional)" class="w-full p-2 rounded text-black">
+                <div id="manual-opsi-pg" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input type="text" id="manual-opsiA" placeholder="Opsi A" class="w-full p-2 rounded text-black">
+                    <input type="text" id="manual-opsiB" placeholder="Opsi B" class="w-full p-2 rounded text-black">
+                    <input type="text" id="manual-opsiC" placeholder="Opsi C" class="w-full p-2 rounded text-black">
+                    <input type="text" id="manual-opsiD" placeholder="Opsi D" class="w-full p-2 rounded text-black">
+                </div>
+                <div class="flex items-center gap-4">
+                    <select id="manual-jawaban" class="w-full p-2 rounded text-black">
+                        <option value="A">Jawaban: A</option>
+                        <option value="B">Jawaban: B</option>
+                        <option value="C">Jawaban: C</option>
+                        <option value="D">Jawaban: D</option>
+                    </select>
+                    <input type="number" id="manual-waktu" value="20" placeholder="Waktu (detik)" class="w-1/2 p-2 rounded text-black">
+                </div>
+                <button onclick="hostSimpanPertanyaan()" class="btn bg-blue-600 hover:bg-blue-700 w-full">Simpan Pertanyaan</button>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-lg text-left space-y-4">
+                <h3 class="text-2xl font-semibold text-center text-yellow-300">Generate Pertanyaan dengan AI ✨</h3>
+                <input type="text" id="ai-topik" placeholder="Masukkan topik, cth: 'Sejarah Indonesia'" class="w-full p-2 rounded text-black">
+                <div class="flex items-center gap-4">
+                     <select id="ai-tipe" class="w-full p-2 rounded text-black">
+                         <option value="Pilihan Ganda">Tipe: Pilihan Ganda</option>
+                         <option value="Benar/Salah">Tipe: Benar/Salah</option>
+                     </select>
+                    <input type="number" id="ai-jumlah" value="5" min="1" max="10" class="w-1/3 p-2 rounded text-black text-center">
+                </div>
+                <button id="ai-generate-btn" onclick="hostGenerateAI()" class="btn bg-purple-600 hover:bg-purple-700 w-full">Generate!</button>
+            </div>
+            <button onclick="showView('home-view')" class="text-gray-400 hover:underline mt-4">Logout</button>
+        </div>
+
+        <div id="host-setup-view" class="view space-y-6 bg-gray-800 p-8 rounded-lg">
+            <h2 class="text-3xl font-bold">Pengaturan Sesi Game</h2>
+            <div class="text-left space-y-4">
+                <div>
+                    <label for="jumlah-pertanyaan-input" class="block mb-2 font-semibold">Jumlah Pertanyaan</label>
+                    <input type="number" id="jumlah-pertanyaan-input" min="1" placeholder="Semua soal" class="w-full p-2 rounded text-black">
+                    <p class="text-xs text-gray-400 mt-1">Kosongkan untuk memainkan semua soal yang ada.</p>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="acak-soal-checkbox" class="h-5 w-5">
+                    <label for="acak-soal-checkbox" class="ml-2">Acak Urutan Soal</label>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row gap-4 mt-6">
+                <button onclick="hostKonfigurasiDanBuatSesi()" class="btn bg-green-600 hover:bg-green-700 w-full">Buat Lobi Game</button>
+                <button onclick="showView('host-dashboard-view')" class="btn bg-gray-600 hover:bg-gray-700 w-full">Kembali</button>
+            </div>
+        </div>
+
+        <div id="ai-review-view" class="view space-y-4 text-left">
+            <h2 class="text-3xl font-bold text-center">Tinjau & Pilih Pertanyaan AI</h2>
+            <div class="flex items-center gap-2 p-2 bg-gray-700 rounded-md">
+                <input type="checkbox" id="ai-select-all-checkbox" onclick="togglePilihSemuaSoalAI(this)" class="h-5 w-5">
+                <label for="ai-select-all-checkbox">Pilih Semua / Batal Pilih Semua</label>
+            </div>
+            <div id="ai-question-list" class="space-y-4 max-h-[55vh] overflow-y-auto p-4 bg-gray-800 rounded-lg"></div>
+            <div class="flex flex-col md:flex-row gap-4">
+                <button onclick="hostSimpanPertanyaanAI()" class="btn bg-green-600 hover:bg-green-700 w-full">Simpan Pertanyaan yang Dipilih</button>
+                <button onclick="showView('host-dashboard-view')" class="btn bg-gray-600 hover:bg-gray-700 w-full">Batal</button>
+            </div>
+        </div>
+
+        <div id="manage-questions-view" class="view space-y-4 text-left">
+            <h2 class="text-3xl font-bold text-center">Kelola Bank Soal</h2>
+            <div class="flex flex-col md:flex-row gap-4">
+                <button onclick="hapusPertanyaanTerpilih()" class="btn bg-red-600 hover:bg-red-700 w-full">Hapus yang Dipilih</button>
+                <button onclick="showView('host-dashboard-view')" class="btn bg-gray-600 hover:bg-gray-700 w-full">Kembali ke Dasbor</button>
+            </div>
+            <div id="manage-question-list" class="space-y-3 max-h-[60vh] overflow-y-auto p-2"></div>
+        </div>
+
+        <div id="edit-question-view" class="view space-y-4 text-left">
+            <h2 class="text-3xl font-bold text-center">Edit Pertanyaan</h2>
+            <input type="hidden" id="edit-id">
+             <select id="edit-tipe" onchange="toggleEditForm(this.value)" class="w-full p-2 rounded text-black">
+                 <option value="Pilihan Ganda">Tipe: Pilihan Ganda</option>
+                 <option value="Benar/Salah">Tipe: Benar/Salah</option>
+             </select>
+            <input type="text" id="edit-pertanyaan" placeholder="Tulis Pertanyaan" class="w-full p-2 rounded text-black">
+             <input type="text" id="edit-gambar-url" placeholder="URL Gambar (Opsional)" class="w-full p-2 rounded text-black">
+            <div id="edit-opsi-pg" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input type="text" id="edit-opsiA" placeholder="Opsi A" class="w-full p-2 rounded text-black">
+                <input type="text" id="edit-opsiB" placeholder="Opsi B" class="w-full p-2 rounded text-black">
+                <input type="text" id="edit-opsiC" placeholder="Opsi C" class="w-full p-2 rounded text-black">
+                <input type="text" id="edit-opsiD" placeholder="Opsi D" class="w-full p-2 rounded text-black">
+            </div>
+            <div class="flex items-center gap-4">
+                <select id="edit-jawaban" class="w-full p-2 rounded text-black">
+                    <option value="A">Jawaban: A</option>
+                    <option value="B">Jawaban: B</option>
+                    <option value="C">Jawaban: C</option>
+                    <option value="D">Jawaban: D</option>
+                </select>
+                <input type="number" id="edit-waktu" placeholder="Waktu (detik)" class="w-1/2 p-2 rounded text-black">
+            </div>
+            <div class="flex flex-col md:flex-row gap-4">
+                <button onclick="simpanPerubahanPertanyaan()" class="btn bg-blue-600 hover:bg-blue-700 w-full">Simpan Perubahan</button>
+                <button onclick="bukaHalamanKelola()" class="btn bg-gray-600 hover:bg-gray-700 w-full">Batal</button>
+            </div>
+        </div>
+
+        <div id="host-question-view" class="view space-y-4">
+            <div class="flex justify-between items-center text-lg bg-gray-800 p-3 rounded-lg">
+                <div>
+                    <span id="host-question-type-badge" class="text-sm font-bold px-3 py-1 rounded-full"></span>
+                    <span id="host-question-counter" class="ml-2 font-semibold"></span>
+                </div>
+                <div class="flex items-center space-x-2 font-semibold">
+                    <span>Jawaban Masuk:</span>
+                    <span id="host-players-answered">0</span>/<span id="host-total-players">0</span>
+                </div>
+            </div>
+            <div id="host-timer" class="text-5xl font-bold">20</div>
+            <div id="host-question-image-container" class="my-4 h-64 flex items-center justify-center"></div>
+            <p id="host-question-text" class="text-3xl font-semibold bg-white text-gray-900 p-8 rounded-lg min-h-[150px] flex items-center justify-center"></p>
+            <div class="text-left">
+                <h3 class="font-semibold text-lg mb-2">Pemain yang sudah menjawab:</h3>
+                <div id="host-answered-player-list" class="bg-gray-800 p-3 rounded-lg min-h-[80px] text-base grid grid-cols-2 md:grid-cols-4 gap-2">
+                </div>
+            </div>
+            <div id="host-question-action-container" class="mt-4"></div>
+        </div>
+
+        <div id="player-question-view" class="view flex flex-col h-screen p-4">
+            <div class="fixed top-4 left-4 text-xl font-bold" id="player-timer"></div>
+            
+            <div id="player-question-image-container" class="w-full flex-grow flex items-center justify-center py-2">
+                </div>
+            
+            <p id="player-question-text" class="w-full text-2xl font-semibold py-4 text-center"></p>
+            
+            <div class="w-full">
+                <div id="player-layout-pg" class="grid grid-cols-2 gap-4 h-auto">
+                    <div onclick="playerAnswer('A')" class="option-btn bg-red-600" id="btn-A-pg"><div class="flex flex-col items-center justify-center"><span class="text-4xl">▲</span><span class="mt-2 text-lg font-semibold" id="option-text-A"></span></div></div>
+                    <div onclick="playerAnswer('B')" class="option-btn bg-blue-600" id="btn-B-pg"><div class="flex flex-col items-center justify-center"><span class="text-4xl">◆</span><span class="mt-2 text-lg font-semibold" id="option-text-B"></span></div></div>
+                    <div onclick="playerAnswer('C')" class="option-btn bg-yellow-500" id="btn-C-pg"><div class="flex flex-col items-center justify-center"><span class="text-4xl">●</span><span class="mt-2 text-lg font-semibold" id="option-text-C"></span></div></div>
+                    <div onclick="playerAnswer('D')" class="option-btn bg-green-600" id="btn-D-pg"><div class="flex flex-col items-center justify-center"><span class="text-4xl">■</span><span class="mt-2 text-lg font-semibold" id="option-text-D"></span></div></div>
+                </div>
+                <div id="player-layout-tf" class="flex flex-col gap-4 h-auto">
+                    <div onclick="playerAnswer('A')" class="tf-btn bg-blue-600" id="btn-A-tf">Benar</div>
+                    <div onclick="playerAnswer('B')" class="tf-btn bg-red-600" id="btn-B-tf">Salah</div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="player-wait-view" class="view space-y-6 flex flex-col items-center justify-center h-screen">
+            <h2 class="text-5xl font-bold">Jawabanmu Terkunci!</h2>
+            <div id="locked-answer-info" class="text-2xl mt-4 font-bold bg-gray-700 px-6 py-3 rounded-lg"></div>
+            <p class="text-xl text-gray-300">Tunggu host menampilkan hasilnya...</p>
+        </div>
+
+        <div id="leaderboard-view" class="view space-y-4">
+            <div id="player-result-info" class="mb-6"></div>
+            <h2 id="leaderboard-title" class="text-4xl font-bold text-yellow-300">Papan Peringkat</h2>
+            <div id="leaderboard-list" class="space-y-3 text-lg"></div>
+            <div id="host-next-button-container"></div>
+        </div>
+
+        <div id="loader" class="view justify-center items-center flex">
+            <div class="loader"></div>
+            <p id="loader-text" class="ml-4 text-xl">Loading...</p>
+        </div>
+
+    </div>
+
+    <script>
+        const STREAK_BONUS_PER_LEVEL = 50;
+        let gameState = { isTransitioning: false, role: null, kodeSesi: null, idpemain: null, namaPemain: null, currentQuestionId: null, timerInterval: null, pollingInterval: null, generatedQuestions: null, allQuestions: null, currentMusicPlaying: null, soundPlayedForQuestion: null };
+
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+            const view = document.getElementById(viewId);
+            const displayStyle = view.classList.contains('flex') ? 'flex' : view.classList.contains('grid') ? 'grid' : 'block';
+            view.style.display = displayStyle;
+        }
+
+        function showLoader(text) {
+            document.getElementById('loader-text').textContent = text;
+            showView('loader');
+        }
+
+        // --- FUNGSI HOST ---
+        function hostLogin() {
+            const password = document.getElementById('host-password-input').value;
+            if (!password) { alert('Sandi host tidak boleh kosong!'); return; }
+            showLoader('Memverifikasi...');
+            google.script.run.withSuccessHandler(res => {
+                if (res.status === 'success') {
+                    gameState.role = 'host';
+                    showView('host-dashboard-view');
+                } else {
+                    alert('Error: ' + res.message);
+                    showView('host-options-view');
+                }
+            }).hostLogin(password);
+        }
+
+        function hostKonfigurasiDanBuatSesi() {
+            const options = {
+                jumlah: document.getElementById('jumlah-pertanyaan-input').value,
+                acak: document.getElementById('acak-soal-checkbox').checked
+            };
+            showLoader('Mengonfigurasi dan membuat lobi...');
+            google.script.run.withSuccessHandler(res => {
+                if (res.status === 'success') {
+                    gameState.kodeSesi = res.kodeSesi;
+                    document.getElementById('lobby-code').textContent = res.kodeSesi;
+                    document.getElementById('host-start-button-container').innerHTML = `<button onclick="hostStartGame()" class="btn bg-red-600 hover:bg-red-700 mt-6">Mulai Game!</button>`;
+                    showView('lobby-view');
+                    startPolling();
+                } else {
+                    alert('Gagal membuat sesi: ' + res.message);
+                    showView('host-setup-view');
+                }
+            }).hostBuatGameDanKonfigurasi(options);
+        }
+
+        function hostGenerateAI() {
+            const topik = document.getElementById('ai-topik').value;
+            const jumlah = document.getElementById('ai-jumlah').value;
+            const tipe = document.getElementById('ai-tipe').value;
+            if (!topik) {
+                alert('Topik tidak boleh kosong!');
+                return;
+            }
+            showLoader(`AI sedang membuat ${jumlah} pertanyaan ${tipe}...`);
+            document.getElementById('ai-generate-btn').disabled = true;
+
+            google.script.run.withSuccessHandler(res => {
+                document.getElementById('ai-generate-btn').disabled = false;
+                if (res.status === 'success') {
+                    gameState.generatedQuestions = res.data;
+                    const listContainer = document.getElementById('ai-question-list');
+                    listContainer.innerHTML = '';
+
+                    res.data.forEach((q, index) => {
+                        const questionEl = document.createElement('div');
+                        questionEl.className = 'bg-gray-700 rounded';
+                        let optionsHtml;
+                        if(q.tipe === 'Benar/Salah'){
+                             optionsHtml = `<ul class="list-disc pl-5 mt-1 text-sm">
+                                 <li class="${q.jawaban.toUpperCase() === 'A' ? 'text-green-400 font-bold' : ''}">Benar</li>
+                                 <li class="${q.jawaban.toUpperCase() === 'B' ? 'text-green-400 font-bold' : ''}">Salah</li>
+                             </ul>`;
+                        } else {
+                             optionsHtml = `<ul class="list-disc pl-5 mt-1 text-sm">
+                                 <li class="${q.jawaban.toUpperCase() === 'A' ? 'text-green-400 font-bold' : ''}">A: ${q.opsiA}</li>
+                                 <li class="${q.jawaban.toUpperCase() === 'B' ? 'text-green-400 font-bold' : ''}">B: ${q.opsiB}</li>
+                                 <li class="${q.jawaban.toUpperCase() === 'C' ? 'text-green-400 font-bold' : ''}">C: ${q.opsiC}</li>
+                                 <li class="${q.jawaban.toUpperCase() === 'D' ? 'text-green-400 font-bold' : ''}">D: ${q.opsiD}</li>
+                             </ul>`;
+                        }
+
+                        questionEl.innerHTML = `
+                            <label class="flex items-start gap-3 p-3 cursor-pointer">
+                                <input type="checkbox" value="${index}" class="ai-question-checkbox mt-1 h-5 w-5">
+                                <div class="flex-grow">
+                                    <p class="font-bold">${index + 1}. ${q.pertanyaan}</p>
+                                    ${optionsHtml}
+                                </div>
+                            </label>`;
+                        listContainer.appendChild(questionEl);
+                    });
+                    document.getElementById('ai-select-all-checkbox').checked = false;
+                    showView('ai-review-view');
+                } else {
+                    alert('Gagal: ' + res.message);
+                    showView('host-dashboard-view');
+                }
+            }).generatePertanyaanAI(topik, jumlah, tipe);
+        }
+        
+        function togglePilihSemuaSoalAI(masterCheckbox) {
+            document.querySelectorAll('.ai-question-checkbox').forEach(cb => cb.checked = masterCheckbox.checked);
+        }
+
+        function hostSimpanPertanyaanAI() {
+            if (!gameState.generatedQuestions) {
+                alert("Tidak ada data pertanyaan. Coba generate lagi.");
+                return;
+            }
+            const checkboxes = document.querySelectorAll('.ai-question-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert("Pilih setidaknya satu pertanyaan untuk disimpan.");
+                return;
+            }
+            const pertanyaanTerpilih = Array.from(checkboxes).map(cb => gameState.generatedQuestions[parseInt(cb.value)]);
+
+            showLoader(`Menyimpan ${pertanyaanTerpilih.length} pertanyaan...`);
+            google.script.run.withSuccessHandler(res => {
+                alert(res.message);
+                if (res.status === 'success') {
+                    gameState.generatedQuestions = null;
+                    showView('host-dashboard-view');
+                } else {
+                    showView('ai-review-view');
+                }
+            }).hostTambahBeberapaPertanyaan(pertanyaanTerpilih);
+        }
+
+        function hostSimpanPertanyaan() {
+            const tipe = document.getElementById('manual-tipe').value;
+            const dataSoal = {
+                tipe: tipe,
+                pertanyaan: document.getElementById('manual-pertanyaan').value,
+                opsiA: document.getElementById('manual-opsiA').value,
+                opsiB: document.getElementById('manual-opsiB').value,
+                opsiC: document.getElementById('manual-opsiC').value,
+                opsiD: document.getElementById('manual-opsiD').value,
+                jawaban: document.getElementById('manual-jawaban').value,
+                waktu: document.getElementById('manual-waktu').value,
+                gambarURL: document.getElementById('manual-gambar-url').value // [BARU]
+            };
+            
+            if (!dataSoal.pertanyaan || (tipe === 'Pilihan Ganda' && (!dataSoal.opsiA || !dataSoal.opsiB))) {
+                alert('Pertanyaan dan setidaknya Opsi A & B tidak boleh kosong!');
+                return;
+            }
+
+            showLoader('Menyimpan pertanyaan...');
+            google.script.run.withSuccessHandler(res => {
+                alert(res.message);
+                if(res.status === 'success') {
+                    document.getElementById('manual-pertanyaan').value = '';
+                    document.getElementById('manual-opsiA').value = '';
+                    document.getElementById('manual-opsiB').value = '';
+                    document.getElementById('manual-opsiC').value = '';
+                    document.getElementById('manual-opsiD').value = '';
+                    document.getElementById('manual-gambar-url').value = ''; // [BARU]
+                }
+                showView('host-dashboard-view');
+            }).hostTambahBeberapaPertanyaan([dataSoal]); 
+        }
+
+        function hostStartGame() {
+            showLoader('Memulai game...');
+            google.script.run.withSuccessHandler(res => { if (res.status !== 'success') alert('Gagal memulai game: ' + res.message); }).hostMulaiGame(gameState.kodeSesi);
+        }
+
+        function hostNext() {
+            gameState.isTransitioning = true;
+            const nextButton = document.getElementById('host-next-btn');
+            if (nextButton) {
+                nextButton.disabled = true;
+                nextButton.textContent = 'Memuat...';
+            }
+
+            google.script.run.withSuccessHandler(res => {
+                if (res.status !== 'success') {
+                    alert('Gagal melanjutkan: ' + res.message);
+                    if (nextButton) {
+                        nextButton.disabled = false;
+                        nextButton.textContent = 'Pertanyaan Berikutnya';
+                    }
+                    gameState.isTransitioning = false;
+                }
+            }).hostLanjut(gameState.kodeSesi);
+        }
+
+        function hostKembaliKeDasbor() {
+            const backButton = document.getElementById('host-next-btn');
+            if (backButton) {
+                backButton.disabled = true;
+            }
+            stopPolling();
+            playMusic('stop'); 
+            gameState.kodeSesi = null;
+            showView('host-dashboard-view');
+        }
+
+        // --- FUNGSI PEMAIN ---
+        function playerJoinGame() {
+            const nama = document.getElementById('player-name-input').value.trim();
+            const kode = document.getElementById('game-code-input').value.trim();
+            const avatar = document.getElementById('player-avatar-input').value;
+            if (!nama || !kode) { alert('Nama dan Kode Game tidak boleh kosong!'); return; }
+            showLoader('Bergabung ke game...');
+            google.script.run.withSuccessHandler(res => {
+                if (res.status === 'success') {
+                    gameState.role = 'player';
+                    gameState.idpemain = res.idpemain;
+                    gameState.kodeSesi = kode;
+                    gameState.namaPemain = nama;
+                    document.getElementById('lobby-code').textContent = kode;
+                    document.getElementById('host-start-button-container').innerHTML = `<p class="text-xl text-gray-300">Menunggu host memulai permainan...</p>`;
+                    
+                    const playerInfoEl = document.getElementById('player-info-display');
+                    playerInfoEl.innerHTML = `<span>${avatar} ${nama}</span>`;
+                    playerInfoEl.classList.remove('hidden');
+
+                    showView('lobby-view');
+                    startPolling();
+                } else { alert('Error: ' + res.message); showView('player-join-view'); }
+            }).playerGabungGame(kode, nama, avatar);
+        }
+
+        function playerAnswer(jawaban) {
+            document.querySelectorAll('.option-btn, .tf-btn').forEach(btn => btn.style.pointerEvents = 'none');
+            
+            const lockedAnswerEl = document.getElementById('locked-answer-info');
+            lockedAnswerEl.textContent = `Pilihanmu: ${jawaban}`;
+            
+            showView('player-wait-view');
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (res.status === 'warning') {
+                        console.log(res.message);
+                    } else if (res.status !== 'success') {
+                        alert('Gagal mengirim jawaban: ' + res.message);
+                        showView('player-question-view');
+                        document.querySelectorAll('.option-btn, .tf-btn').forEach(btn => btn.style.pointerEvents = 'auto');
+                    }
+                })
+                .playerSubmitJawaban(gameState.kodeSesi, gameState.idpemain, jawaban);
+        }
+
+
+        // --- FUNGSI POLLING & STATE MANAGEMENT ---
+        function startPolling() {
+            if (gameState.pollingInterval) clearInterval(gameState.pollingInterval);
+            gameState.pollingInterval = setInterval(updateGameState, 2000);
+        }
+
+        function stopPolling() {
+            clearInterval(gameState.pollingInterval);
+            gameState.pollingInterval = null;
+        }
+
+        function updateGameState() {
+            if (!gameState.kodeSesi) return;
+            google.script.run.withSuccessHandler(handleStateUpdate).getGameState(gameState.kodeSesi, gameState.idpemain);
+        }
+
+        function handleStateUpdate(state) {
+            console.log('State received:', state);
+            if (!state || state.status === 'error') {
+                stopPolling();
+                playMusic('stop');
+                document.getElementById('player-info-display').classList.add('hidden');
+                alert(state ? state.message : "Sesi game tidak lagi valid.");
+                window.location.reload();
+                return;
+            }
+
+            if (state.status === 'LOBBY') {
+                playMusic('lobby');
+                const playerListEl = document.getElementById('player-list');
+                playerListEl.innerHTML = state.pemain.map(p => `<div class="bg-gray-700 p-2 rounded flex items-center gap-2"><span class="text-2xl">${p.avatar}</span><span>${p.nama}</span></div>`).join('');
+            }
+            else if (state.status === 'PERTANYAAN') {
+                playMusic('question');
+                
+                if (gameState.currentQuestionId !== state.soal.id) {
+                    gameState.isTransitioning = false;
+                    gameState.soundPlayedForQuestion = null;
+                    gameState.currentQuestionId = state.soal.id;
+                    clearInterval(gameState.timerInterval);
+                    
+                    const timerFunction = () => {
+                        const sisaWaktu = Math.max(0, Math.round((state.waktuMulai + (state.soal.waktu * 1000) - new Date().getTime()) / 1000));
+                        
+                        if (gameState.role === 'host') document.getElementById('host-timer').textContent = sisaWaktu;
+                        if (gameState.role === 'player') document.getElementById('player-timer').textContent = sisaWaktu;
+
+                        if (sisaWaktu <= 0) {
+                            clearInterval(gameState.timerInterval);
+                            if (gameState.role === 'host') document.getElementById('host-timer').textContent = "Waktu Habis!";
+                            if (gameState.role === 'player' && document.getElementById('player-question-view').style.display !== 'none') {
+                                const lockedAnswerEl = document.getElementById('locked-answer-info');
+                                lockedAnswerEl.textContent = 'Waktu Habis';
+                                showView('player-wait-view');
+                            }
+                        }
+                    };
+                    timerFunction();
+                    gameState.timerInterval = setInterval(timerFunction, 1000);
+
+                    // --- [BARU] Logika untuk menampilkan gambar ---
+                    const hostImageContainer = document.getElementById('host-question-image-container');
+                    const playerImageContainer = document.getElementById('player-question-image-container');
+
+                    if (state.soal.gambarURL) {
+                        const imgHTML = `<img src="${state.soal.gambarURL}" class="max-h-full max-w-full mx-auto rounded-lg shadow-lg object-contain">`;
+                        hostImageContainer.innerHTML = imgHTML;
+                        playerImageContainer.innerHTML = imgHTML;
+                    } else {
+                        hostImageContainer.innerHTML = '';
+                        playerImageContainer.innerHTML = '';
+                    }
+
+                    if (gameState.role === 'host') {
+                        document.getElementById('host-question-text').textContent = state.soal.pertanyaan;
+                        document.getElementById('host-question-action-container').innerHTML = '';
+                        showView('host-question-view');
+                    } else if (gameState.role === 'player') {
+                        document.getElementById('player-question-text').textContent = state.soal.pertanyaan; // Tampilkan teks soal ke pemain
+                        if (state.jawabanPemain !== '') {
+                             const lockedAnswerEl = document.getElementById('locked-answer-info');
+                             lockedAnswerEl.textContent = `Pilihanmu: ${state.jawabanPemain}`;
+                            showView('player-wait-view');
+                        } else {
+                            document.querySelectorAll('.option-btn, .tf-btn').forEach(btn => btn.style.pointerEvents = 'auto');
+                            if (state.soal.tipe === 'Benar/Salah') {
+                                document.getElementById('player-layout-pg').style.display = 'none';
+                                document.getElementById('player-layout-tf').style.display = 'flex';
+                            } else {
+                                document.getElementById('player-layout-tf').style.display = 'none';
+                                document.getElementById('player-layout-pg').style.display = 'grid';
+                                document.getElementById('option-text-A').textContent = state.soal.opsi.A;
+                                document.getElementById('option-text-B').textContent = state.soal.opsi.B;
+                                document.getElementById('option-text-C').textContent = state.soal.opsi.C;
+                                document.getElementById('option-text-D').textContent = state.soal.opsi.D;
+                            }
+                            showView('player-question-view');
+                        }
+                    }
+                }
+                
+                if (gameState.role === 'host') {
+                    document.getElementById('host-question-counter').textContent = `Soal ${state.nomorSoal} dari ${state.totalSoal}`;
+                    const typeBadge = document.getElementById('host-question-type-badge');
+                    typeBadge.textContent = state.soal.tipe;
+                    if (state.soal.tipe === 'Benar/Salah') {
+                        typeBadge.className = 'text-sm font-bold px-3 py-1 rounded-full bg-cyan-600 text-white';
+                    } else {
+                        typeBadge.className = 'text-sm font-bold px-3 py-1 rounded-full bg-purple-600 text-white';
+                    }
+
+                    document.getElementById('host-players-answered').textContent = state.pemainSudahJawab;
+                    document.getElementById('host-total-players').textContent = state.totalPemain;
+                    
+                    const answeredPlayerListEl = document.getElementById('host-answered-player-list');
+                    if (state.pemainYangSudahJawab && state.pemainYangSudahJawab.length > 0) {
+                        answeredPlayerListEl.innerHTML = state.pemainYangSudahJawab.map(p => 
+                            `<div class="bg-gray-700 p-2 rounded flex items-center gap-2"><span class="text-xl">${p.avatar}</span><span>${p.nama}</span></div>`
+                        ).join('');
+                    } else {
+                        answeredPlayerListEl.innerHTML = '<p class="text-gray-400 col-span-full text-center">Belum ada jawaban yang masuk...</p>';
+                    }
+                }
+            } 
+            else if (state.status === 'LEADERBOARD' || state.status === 'SELESAI') {
+                if (state.status === 'SELESAI') {
+                    gameState.isTransitioning = false;
+                }
+                
+                if (gameState.isTransitioning) {
+                    return; 
+                }
+
+                playMusic('lobby');
+                clearInterval(gameState.timerInterval);
+                
+                if (gameState.role === 'player' && gameState.soundPlayedForQuestion !== gameState.currentQuestionId) {
+                    gameState.soundPlayedForQuestion = gameState.currentQuestionId;
+                    const resultInfoEl = document.getElementById('player-result-info');
+                    let resultHTML = '';
+                    if(state.jawabanPemain === ''){
+                        resultHTML = `<h2 class="text-5xl font-bold text-gray-400">Waktu Habis</h2><p class="mt-2 text-gray-300">Jawaban benar: ${state.jawabanBenar}</p>`;
+                    } else if (state.jawabanPemain === state.jawabanBenar) {
+                        playSound('correct');
+                        resultHTML = `<h2 class="text-5xl font-bold text-green-400">BENAR</h2>`;
+                        const myData = state.leaderboard.find(p => p.id === gameState.idpemain);
+                        if (myData && myData.streak > 1) {
+                            const bonus = (myData.streak - 1) * STREAK_BONUS_PER_LEVEL;
+                            resultHTML += `<p class="mt-2 text-yellow-300 font-semibold text-2xl">🔥 ${myData.streak}x Streak! +${bonus} Poin Bonus</p>`;
+                        }
+                    } else {
+                        playSound('wrong');
+                        resultHTML = `<h2 class="text-5xl font-bold text-red-500">SALAH</h2><p class="mt-2 text-gray-300">Jawaban benar: ${state.jawabanBenar}</p>`;
+                    }
+                    resultInfoEl.innerHTML = resultHTML;
+                }
+                
+                document.getElementById('leaderboard-title').textContent = state.status === 'SELESAI' ? '✨ Hasil Akhir ✨' : 'Papan Peringkat';
+                const listEl = document.getElementById('leaderboard-list');
+                listEl.innerHTML = state.leaderboard.slice(0, 10).map((p, index) => {
+                    const rank = index + 1;
+                    let classList = 'p-3 rounded-lg flex justify-between items-center transition-all duration-300 transform';
+                    let medal;
+                    if (rank === 1) { classList += ' rank-1 text-black font-bold scale-110 my-3 sparkle'; medal = '🏆';} 
+                    else if (rank === 2) { classList += ' rank-2 text-black font-semibold scale-105 my-2'; medal = '🥈'; } 
+                    else if (rank === 3) { classList += ' rank-3 text-black font-semibold scale-100 my-1'; medal = '🥉'; } 
+                    else { classList += ' bg-gray-800 text-white'; medal = `#${rank}`; }
+                    const streakIndicator = p.streak > 1 ? `<span class="text-orange-400 font-bold ml-2">🔥${p.streak}</span>` : '';
+                    return `<div class="${classList}">
+                                <span class="flex items-center">${medal} ${p.avatar} ${p.nama} ${streakIndicator}</span>
+                                <span class="font-bold">${p.skor}</span>
+                            </div>`;
+                }).join('');
+                
+                const nextBtnContainer = document.getElementById('host-next-button-container');
+                if (gameState.role === 'host') {
+                    let btnText = 'Pertanyaan Berikutnya';
+                    let btnAction = 'hostNext()';
+                    if (state.status === 'SELESAI') {
+                        btnText = 'Kembali ke Dasbor';
+                        btnAction = 'hostKembaliKeDasbor()';
+                    } else if (state.isFinalLeaderboard) {
+                        btnText = 'Selesai';
+                    }
+                    nextBtnContainer.innerHTML = `<button id="host-next-btn" onclick="${btnAction}" class="btn bg-indigo-600 hover:bg-indigo-700 mt-6">${btnText}</button>`;
+                } else {
+                    if (state.status === 'SELESAI') {
+                        nextBtnContainer.innerHTML = '';
+                    } else {
+                        nextBtnContainer.innerHTML = `<p class="text-lg mt-6 text-gray-300">Tunggu host melanjutkan...</p>`;
+                    }
+                }
+                showView('leaderboard-view');
+            }
+        }
+
+        window.onload = () => {
+            document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+            showView('welcome-view');
+            
+            const welcomeMessage = "Selamat Datang di Kuis Interaktif Syamsul Bahri";
+            typeWriter('welcome-text', welcomeMessage, 75, () => {
+                setTimeout(() => {
+                    showView('home-view');
+                }, 1200);
+            });
+        };
+
+        function typeWriter(elementId, text, speed, onComplete) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            let i = 0;
+            element.innerHTML = '';
+            
+            function type() {
+                if (i < text.length) {
+                    element.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(type, speed);
+                } else if (onComplete) {
+                    element.style.borderRight = 'none';
+                    onComplete();
+                }
+            }
+            type();
+        }
+
+        function bukaHalamanKelola() {
+            showLoader("Memuat semua pertanyaan...");
+            google.script.run.withSuccessHandler(res => {
+                if (res.status === 'success') {
+                    gameState.allQuestions = res.data;
+                    const listContainer = document.getElementById('manage-question-list');
+                    listContainer.innerHTML = '';
+                    if (res.data.length === 0) {
+                        listContainer.innerHTML = '<p class="text-center text-gray-400">Belum ada pertanyaan di bank soal.</p>';
+                    }
+                    res.data.forEach(q => {
+                        const itemEl = document.createElement('div');
+                        itemEl.className = 'flex items-center gap-3 bg-gray-800 p-2 rounded';
+                        const tipeLabel = q.tipe === 'Benar/Salah' ? `<span class="text-xs bg-cyan-600 px-2 py-1 rounded-full">${q.tipe}</span>` : `<span class="text-xs bg-purple-600 px-2 py-1 rounded-full">${q.tipe}</span>`
+                        itemEl.innerHTML = `
+                            <input type="checkbox" value="${q.id}" class="h-6 w-6 question-checkbox">
+                            <div class="flex-grow text-left">
+                                <p class="font-semibold">${q.id}. ${q.pertanyaan}</p>
+                                <p class="text-sm text-green-400 mt-1">Jawaban: ${q.jawaban}</p>
+                            </div>
+                            ${tipeLabel}
+                            <button onclick="bukaFormEdit(${q.id})" class="bg-yellow-500 text-black px-3 py-1 rounded text-sm font-bold">Edit</button>`;
+                        listContainer.appendChild(itemEl);
+                    });
+                    showView('manage-questions-view');
+                } else {
+                    alert('Gagal memuat pertanyaan: ' + res.message);
+                    showView('host-dashboard-view');
+                }
+            }).getSemuaPertanyaan();
+        }
+
+        function bukaFormEdit(id) {
+            const q = gameState.allQuestions.find(q => q.id === id);
+            if (q) {
+                document.getElementById('edit-id').value = q.id;
+                document.getElementById('edit-tipe').value = q.tipe;
+                document.getElementById('edit-pertanyaan').value = q.pertanyaan;
+                document.getElementById('edit-opsiA').value = q.opsiA;
+                document.getElementById('edit-opsiB').value = q.opsiB;
+                document.getElementById('edit-opsiC').value = q.opsiC;
+                document.getElementById('edit-opsiD').value = q.opsiD;
+                document.getElementById('edit-jawaban').value = q.jawaban;
+                document.getElementById('edit-waktu').value = q.waktu;
+                document.getElementById('edit-gambar-url').value = q.gambarURL || ''; // [BARU]
+                toggleEditForm(q.tipe);
+                showView('edit-question-view');
+            }
+        }
+
+        function simpanPerubahanPertanyaan() {
+            const tipe = document.getElementById('edit-tipe').value;
+            const dataSoal = {
+                id: parseInt(document.getElementById('edit-id').value),
+                tipe: tipe,
+                pertanyaan: document.getElementById('edit-pertanyaan').value,
+                opsiA: document.getElementById('edit-opsiA').value,
+                opsiB: document.getElementById('edit-opsiB').value,
+                opsiC: document.getElementById('edit-opsiC').value,
+                opsiD: document.getElementById('edit-opsiD').value,
+                jawaban: document.getElementById('edit-jawaban').value,
+                waktu: document.getElementById('edit-waktu').value,
+                gambarURL: document.getElementById('edit-gambar-url').value // [BARU]
+            };
+            showLoader("Menyimpan perubahan...");
+            google.script.run.withSuccessHandler(res => {
+                alert(res.message);
+                if (res.status === 'success') {
+                    bukaHalamanKelola();
+                } else {
+                    showView('edit-question-view');
+                }
+            }).updatePertanyaan(dataSoal);
+        }
+
+        function hapusPertanyaanTerpilih() {
+            const checkboxes = document.querySelectorAll('.question-checkbox:checked');
+            const idsToDelete = Array.from(checkboxes).map(cb => cb.value);
+            if (idsToDelete.length === 0) {
+                alert("Pilih setidaknya satu pertanyaan untuk dihapus.");
+                return;
+            }
+            if (confirm(`Apakah Anda yakin ingin menghapus ${idsToDelete.length} pertanyaan yang dipilih?`)) {
+                showLoader("Menghapus pertanyaan...");
+                google.script.run.withSuccessHandler(res => {
+                    alert(res.message);
+                    bukaHalamanKelola();
+                }).hapusBeberapaPertanyaan(idsToDelete);
+            }
+        }
+
+        document.querySelectorAll('.avatar-option').forEach(avatar => {
+            avatar.addEventListener('click', () => {
+                document.querySelector('.avatar-option.selected').classList.remove('selected');
+                avatar.classList.add('selected');
+                document.getElementById('player-avatar-input').value = avatar.textContent;
+            });
+        });
+
+        function toggleManualForm(tipe) {
+            const opsiContainer = document.getElementById('manual-opsi-pg');
+            const jawabanSelect = document.getElementById('manual-jawaban');
+            if(tipe === 'Benar/Salah') {
+                opsiContainer.style.display = 'none';
+                jawabanSelect.innerHTML = '<option value="A">Jawaban: Benar</option><option value="B">Jawaban: Salah</option>';
+            } else {
+                opsiContainer.style.display = 'grid';
+                jawabanSelect.innerHTML = '<option value="A">Jawaban: A</option><option value="B">Jawaban: B</option><option value="C">Jawaban: C</option><option value="D">Jawaban: D</option>';
+            }
+        }
+
+        function toggleEditForm(tipe) {
+            const opsiContainer = document.getElementById('edit-opsi-pg');
+            const jawabanSelect = document.getElementById('edit-jawaban');
+            if(tipe === 'Benar/Salah') {
+                opsiContainer.style.display = 'none';
+                jawabanSelect.innerHTML = '<option value="A">Jawaban: Benar</option><option value="B">Jawaban: Salah</option>';
+            } else {
+                opsiContainer.style.display = 'grid';
+                jawabanSelect.innerHTML = '<option value="A">Jawaban: A</option><option value="B">Jawaban: B</option><option value="C">Jawaban: C</option><option value="D">Jawaban: D</option>';
+            }
+        }
+
+        const sounds = { lobby: document.getElementById('lobby-music'), question: document.getElementById('question-music'), correct: document.getElementById('correct-sfx'), wrong: document.getElementById('wrong-sfx') };
+        function playSound(soundName) {
+            sounds.correct.pause(); sounds.correct.currentTime = 0; sounds.wrong.pause(); sounds.wrong.currentTime = 0;
+            if (sounds[soundName]) { sounds[soundName].play().catch(e => console.log("Audio play failed:", e)); }
+        }
+
+        function playMusic(musicName) {
+            if (gameState.currentMusicPlaying === musicName) { return; }
+            Object.values(sounds).forEach(sound => {
+                if (sound.loop) { sound.pause(); sound.currentTime = 0; }
+            });
+            if (musicName === 'stop') {
+                gameState.currentMusicPlaying = null;
+                return;
+            }
+            if (sounds[musicName] && sounds[musicName].loop) {
+                sounds[musicName].play().catch(e => console.log("Gagal memutar musik:", e));
+                gameState.currentMusicPlaying = musicName;
+            }
+        }
+    </script>
+</body>
+</html>
